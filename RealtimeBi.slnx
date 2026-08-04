@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RealtimeBi.Api/RealtimeBi.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RealtimeBi.Tests/RealtimeBi.Tests.csproj" />
+  </Folder>
+</Solution>
