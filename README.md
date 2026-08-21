@@ -1,73 +1,75 @@
-# Realtime Sales BI
+# داشبورد فروش لحظه‌ای (Realtime Sales BI)
 
-A live sales dashboard: events stream into a rolling in-memory window, and
-snapshots are pushed to every connected browser over **SignalR** — no polling,
-no page refresh.
+*A live sales dashboard: events stream into a rolling in-memory window, and snapshots push to every connected browser over SignalR — no polling, no page refresh. ASP.NET Core 10 · SignalR · minimal APIs · xUnit. See below for the Persian write-up.*
 
-**ASP.NET Core 10 · SignalR · minimal APIs · xUnit.** No database, no external
-services; `dotnet run` and it works.
+یک داشبورد فروش زنده: رویدادها به یک پنجره‌ی درحال‌غلتیدن در حافظه جریان
+می‌یابند، و عکس‌های لحظه‌ای (snapshot) روی **SignalR** به هر مرورگر متصل
+push می‌شوند — بدون polling، بدون رفرش صفحه.
+
+**ASP.NET Core 10 · SignalR · minimal APIs · xUnit.** بدون پایگاه‌داده،
+بدون سرویس بیرونی؛ `dotnet run` و کار می‌کند.
 
 ---
 
-## What it does
+## چه‌کاری انجام می‌دهد
 
 ```
  producer ──▶ SlidingWindowAggregator ──▶ broadcast tick ──▶ SignalR ──▶ browsers
- (12/s)        (5-minute window,           (every 1s)
-                30s buckets)
+ (12/s)        (پنجره‌ی ۵ دقیقه‌ای،         (هر ۱ ثانیه)
+                bucketهای ۳۰ ثانیه‌ای)
 ```
 
-The two loops are **deliberately decoupled**. Broadcasting per event would
-flood clients at high throughput; broadcasting on a fixed tick keeps the client
-cost flat no matter how fast events arrive. At 12 events/sec that is 12 ingests
-and 1 push per second.
+این دو حلقه **عمداً از هم جدا شده‌اند**. broadcast به‌ازای هر رویداد در
+throughput بالا کلاینت‌ها را غرق می‌کرد؛ broadcast روی یک تیک ثابت هزینه‌ی
+کلاینت را ثابت نگه می‌دارد صرف‌نظر از سرعت ورود رویدادها. با ۱۲ رویداد در
+ثانیه، این یعنی ۱۲ ingest و ۱ push در ثانیه.
 
-Events reach the aggregator either from the built-in synthetic producer or by
-`POST /api/events` from a real order system.
+رویدادها یا از تولیدکننده‌ی مصنوعی داخلی به aggregator می‌رسند یا از طریق
+`POST /api/events` از یک سیستم سفارش واقعی.
 
 ---
 
-## Measured on a live run
+## اندازه‌گیری‌شده روی یک اجرای زنده
 
-After ~4 minutes at 12 events/sec:
+بعد از حدود ۴ دقیقه با نرخ ۱۲ رویداد در ثانیه:
 
 | | |
 |---|---|
-| Revenue in window | £163,662.19 |
-| Orders in window | 1,698 |
-| Average order | £96.39 |
-| Push interval | 998 ms (target 1000 ms) |
-| Timeline | 10 buckets × 30 s |
+| درآمد در پنجره | £۱۶۳٬۶۶۲٫۱۹ |
+| تعداد سفارش در پنجره | ۱٬۶۹۸ |
+| میانگین سفارش | £۹۶٫۳۹ |
+| فاصله‌ی push | ۹۹۸ میلی‌ثانیه (هدف ۱۰۰۰ میلی‌ثانیه) |
+| Timeline | ۱۰ bucket × ۳۰ ثانیه |
 
-Regional split came out North £47.6k / South £38.4k / East £32.3k / West £23.7k
-/ Central £16.9k — tracking the generator's configured weights, which is the
-cheap sanity check that aggregation is grouping correctly.
+تفکیک منطقه‌ای: North £۴۷٫۶k / South £۳۸٫۴k / East £۳۲٫۳k / West £۲۳٫۷k /
+Central £۱۶٫۹k — همسو با وزن‌های پیکربندی‌شده‌ی مولد، که یک تست عقلانیت
+ارزان برای درست‌بودن گروه‌بندی aggregation است.
 
 ---
 
-## Quick start
+## شروع سریع
 
 ```bash
 dotnet run --project src/RealtimeBi.Api
 ```
 
-Then open <http://localhost:5240>. The dashboard connects on load and starts
-updating within a second.
+بعد `http://localhost:5240` را باز کن. داشبورد هنگام بارگذاری وصل می‌شود و
+در کمتر از یک ثانیه شروع به آپدیت‌شدن می‌کند.
 
 ```bash
-dotnet test        # 28 tests
+dotnet test        # ۲۸ آزمون
 ```
 
 ---
 
 ## API
 
-| Method | Endpoint | Purpose |
+| متد | مسیر | هدف |
 |---|---|---|
-| `GET` | `/health` | Window size, events held, connected clients |
-| `GET` | `/api/snapshot` | Current snapshot over plain HTTP |
-| `POST` | `/api/events` | Push a real sales event into the window |
-| — | `/hub/dashboard` | SignalR hub — `snapshot` push, `RequestSnapshot` pull |
+| `GET` | `/health` | اندازه‌ی پنجره، تعداد رویدادهای نگه‌داشته‌شده، کلاینت‌های متصل |
+| `GET` | `/api/snapshot` | عکس لحظه‌ای فعلی روی HTTP ساده |
+| `POST` | `/api/events` | تزریق یک رویداد فروش واقعی به پنجره |
+| — | `/hub/dashboard` | هاب SignalR — push با `snapshot`، pull با `RequestSnapshot` |
 
 ```bash
 curl -X POST http://localhost:5240/api/events \
@@ -76,79 +78,82 @@ curl -X POST http://localhost:5240/api/events \
        "amount":249.99,"occurredAt":"2026-08-03T10:15:00Z"}'
 ```
 
-Configuration lives under `Feed` in `appsettings.json`: `EventsPerSecond`,
-`BroadcastIntervalMs`, `WindowMinutes`, `BucketSeconds`,
-`GenerateSyntheticEvents`. Invalid values fail at **startup**, not on first
-request.
+تنظیمات زیر کلید `Feed` در `appsettings.json` قرار دارند: `EventsPerSecond`،
+`BroadcastIntervalMs`، `WindowMinutes`، `BucketSeconds`،
+`GenerateSyntheticEvents`. مقادیر نامعتبر همان **موقع راه‌اندازی** خطا
+می‌دهند، نه در اولین درخواست.
 
 ---
 
-## Design decisions worth explaining
+## تصمیم‌های طراحی که ارزش توضیح دارند
 
-**Reader/writer lock, not a plain `lock`.** Ingest writes; snapshots read. Many
-threads snapshot concurrently (the broadcast loop, HTTP requests, hub calls)
-while only the producer writes, so `ReaderWriterLockSlim` lets readers run in
-parallel and serialises only the writer.
+**قفل خواننده/نویسنده، نه یک `lock` ساده.** ingest می‌نویسد؛ snapshot
+می‌خواند. چند thread هم‌زمان snapshot می‌گیرند (حلقه‌ی broadcast، درخواست‌های
+HTTP، فراخوانی‌های hub) درحالی‌که فقط تولیدکننده می‌نویسد، پس
+`ReaderWriterLockSlim` اجازه می‌دهد خواننده‌ها موازی اجرا شوند و فقط
+نویسنده را سریالایز می‌کند.
 
-**Snapshots are immutable records.** A snapshot pushed to a client can never be
-mutated by the next event to arrive — a test asserts that a snapshot taken
-before an ingest still shows the old total.
+**Snapshotها رکوردهای immutable‌اند.** یک snapshot که به یک کلاینت push
+شده هرگز با رویداد بعدی تغییر نمی‌کند — یک آزمون تضمین می‌کند snapshotای که
+قبل از یک ingest گرفته شده، همچنان مجموع قدیمی را نشان می‌دهد.
 
-**Eviction happens on write, not on a timer.** No background sweeper to keep
-alive, and the buffer cannot grow between sweeps. There is also a hard
-`maxEvents` cap, because future-dated events would never age out by time alone.
+**Eviction هنگام نوشتن اتفاق می‌افتد، نه روی تایمر.** نیازی به یک sweeper
+پس‌زمینه‌ی همیشه‌روشن نیست، و بافر بین دو sweep نمی‌تواند رشد کند. یک سقف
+سخت `maxEvents` هم هست، چون رویدادهای با تاریخ آینده هرگز صرفاً با گذر زمان
+منقضی نمی‌شدند.
 
-**The timeline pre-seeds every bucket.** A quiet 30 seconds renders as a zero
-bar, not as a gap the chart has to interpolate across.
+**Timeline از قبل هر bucket را pre-seed می‌کند.** یک ۳۰ ثانیه‌ی ساکت به‌شکل
+یک میله‌ی صفر رندر می‌شود، نه یک شکاف که چارت مجبور باشد بینش را
+درون‌یابی کند.
 
-**Connect pushes immediately.** A client that has just connected would
-otherwise stare at an empty screen until the next tick. `OnConnectedAsync`
-sends the current snapshot straight to the caller.
+**اتصال بلافاصله push می‌کند.** کلاینتی که تازه وصل شده، در غیر این‌صورت تا
+تیک بعدی به صفحه‌ی خالی خیره می‌ماند. `OnConnectedAsync` بلافاصله snapshot
+فعلی را برای همان تماس‌گیرنده می‌فرستد.
 
-**Broadcast skips when nobody is watching.** If no clients are connected the
-loop does not build a projection at all.
+**Broadcast وقتی کسی تماشا نمی‌کند رد می‌شود.** اگر هیچ کلاینتی وصل نباشد،
+حلقه اصلاً یک projection نمی‌سازد.
 
-**Validation at the edge.** `SalesEvent.Validate()` runs before an event can
-enter the window, so one malformed payload cannot corrupt a running aggregate.
-`POST /api/events` returns the specific field errors.
+**اعتبارسنجی روی لبه.** `SalesEvent.Validate()` قبل از این‌که یک رویداد
+بتواند وارد پنجره شود اجرا می‌شود، پس یک payload بدشکل نمی‌تواند یک aggregate
+درحال‌اجرا را خراب کند. `POST /api/events` خطاهای فیلد به فیلد را برمی‌گرداند.
 
 ---
 
-## Tests — 28
+## آزمون‌ها — ۲۸ مورد
 
-| Area | Covers |
+| بخش | پوشش می‌دهد |
 |---|---|
-| Aggregation | totals, breakdowns, sorting, rounding to cents |
-| Window | expiry, boundary, eviction, out-of-order arrivals |
-| Timeline | bucket count, zero-fill, ordering, totals reconcile |
-| Concurrency | 4,000 parallel ingests lose nothing; snapshots never tear |
-| Validation | bad amounts, nulls, bucket larger than window |
-| HTTP | health, snapshot, event push, field-level errors |
-| SignalR | snapshot on connect, live broadcast, on-demand pull, connection counting |
+| Aggregation | مجموع‌ها، تفکیک‌ها، مرتب‌سازی، گردکردن به سنت |
+| پنجره | انقضا، مرز، eviction، ورود خارج از ترتیب |
+| Timeline | تعداد bucket، پرکردن صفر، ترتیب، تطابق مجموع‌ها |
+| هم‌زمانی | ۴۰۰۰ ingest موازی چیزی گم نمی‌کند؛ snapshotها هرگز پاره نمی‌شوند |
+| اعتبارسنجی | مبالغ نادرست، null، bucket بزرگ‌تر از پنجره |
+| HTTP | سلامت، snapshot، تزریق رویداد، خطاهای سطح فیلد |
+| SignalR | snapshot هنگام اتصال، broadcast زنده، pull درخواستی، شمارش اتصال |
 
-Window behaviour is tested against an injected `TimeProvider`, so a 6-minute
-expiry test runs instantly instead of sleeping.
+رفتار پنجره در برابر یک `TimeProvider` تزریق‌شده تست می‌شود، پس یک آزمون
+انقضای ۶ دقیقه‌ای بلافاصله اجرا می‌شود، نه با sleep‌کردن.
 
-The SignalR tests use a real `HubConnection` against `WebApplicationFactory` —
-they exercise the actual transport, not a mock.
+آزمون‌های SignalR از یک `HubConnection` واقعی روی `WebApplicationFactory`
+استفاده می‌کنند — آن‌ها انتقال واقعی را تمرین می‌دهند، نه یک mock.
 
 ---
 
-## Layout
+## ساختار
 
 ```
 realtime-bi/
 ├── src/RealtimeBi.Api/
-│   ├── Domain/          # SalesEvent, DashboardSnapshot (immutable records)
+│   ├── Domain/          # SalesEvent, DashboardSnapshot (رکوردهای immutable)
 │   ├── Services/        # SlidingWindowAggregator, generator, FeedWorker, options
 │   ├── Hubs/            # DashboardHub
-│   ├── wwwroot/         # dashboard (hand-rolled SVG chart, no chart library)
+│   ├── wwwroot/         # داشبورد (چارت SVG دستی، بدون کتابخانه‌ی چارت)
 │   └── Program.cs
 └── tests/RealtimeBi.Tests/
     ├── AggregatorTests.cs
     └── ApiTests.cs
 ```
 
-## License
+## مجوز
 
 MIT
