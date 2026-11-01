@@ -65,6 +65,11 @@ dotnet test
 
 State is in memory. A restart clears the window. There is no database.
 
+## Folder guides
+
+- [`src/`](<src/README.md>)
+- [`tests/`](<tests/README.md>)
+
 ## License
 
 MIT
